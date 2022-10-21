@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+import datetime
 from airflow import DAG
 from airflow.models import Variable
 from airflow.models import dag
@@ -9,7 +9,7 @@ DAG_ID = "relay_export_dag"
 
 with DAG(
     dag_id = DAG_ID,
-    start_date = datetime(2022,10,17),
+    start_date = datetime.datetime(2022,10,17),
     schedule_interval = "@daily",
     catchup = True,
 ) as dag:
@@ -20,7 +20,6 @@ with DAG(
         BUCKET_NAME = Variable.get('relay-data-export-bucket-name')
         POSTGRES_CONN_ID = Variable.get('mainnet-relay-connection-id')
 
-        logical_date = "{{ ds }}"
         psql_hook = PostgresHook(postgres_conn_id=POSTGRES_CONN_ID)
         connection = psql_hook.get_conn()
         with connection.cursor() as cursor:
@@ -28,12 +27,12 @@ with DAG(
                 SELECT *
                 FROM mainnet_builder_block_submission
                 WHERE inserted_at > '{dag.start_date}'
-                AND inserted_at < '{dag.start_date - timedelta(hours=1)}'
+                AND inserted_at < '{dag.start_date - datetime.timedelta(hours=1)}'
             """)
             result = cursor.fetchall()
 
         s3_hook = S3Hook('s3_conn')
-        s3_hook.load_file_obj(file_obj=io.BytesIO(f"{result}".encode('UTF-8')), key=f'{datetime.now()}', bucket_name=BUCKET_NAME)
+        s3_hook.load_file_obj(file_obj=io.BytesIO(f"{result}".encode('UTF-8')), key=f'{datetime.datetime.now()}', bucket_name=BUCKET_NAME)
 
     fetch_and_export_relay_data = PythonOperator(
         task_id="fetch_and_export_relay_data",
