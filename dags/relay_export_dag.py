@@ -5,7 +5,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.python import PythonOperator
 DAG_ID = "relay_export_dag"
-POSTGRES_CONN_ID = "boost_relay_read_replica"
+
 
 with DAG(
     dag_id = DAG_ID,
@@ -16,7 +16,10 @@ with DAG(
     def _fetch_and_export_relay_data():
         import io
         import csv
+
         BUCKET_NAME = Variable.get('relay-data-export-bucket-name')
+        POSTGRES_CONN_ID = Variable.get('mainnet-relay-connection-id')
+
         psql_hook = PostgresHook(postgres_conn_id=POSTGRES_CONN_ID)
         connection = psql_hook.get_conn()
         with connection.cursor() as cursor:
