@@ -1,6 +1,7 @@
 import datetime
 import boto3
 import json
+import io
 from airflow import DAG
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
@@ -8,6 +9,7 @@ from airflow.operators.python import PythonOperator
 DAG_ID = "relay_export_dag"
 POSTGRES_CONN_ID = "boost_relay_read_replica"
 AWS_REGION = "us-east-2"
+SECRET = "airflow-airflow-main"
 
 session = boto3.session.Session()
 client = session.client(service_name='secretsmanager',region_name=AWS_REGION)
@@ -33,11 +35,10 @@ with DAG(
                 WHERE inserted_at > '{datetime.datetime(2022,10,17)}'
                 LIMIT 1
             """)
-            result = cursor.fetchall()
-
+            result = cursor.fetchone()
 
         s3_hook = S3Hook('s3_conn')
-        s3_hook.load_file(filename=f'{datetime.datetime.now()}', key=f'{datetime.datetime.now()}', bucket_name=BUCKET_NAME)
+        s3_hook.load_file_obj(file_obj=io.StringIO(f"{result}".encode('UTF-8')), key=f'{datetime.datetime.now()}', bucket_name=BUCKET_NAME)
 
     fetch_and_export_relay_data = PythonOperator(
     task_id="fetch_and_export_relay_data",
