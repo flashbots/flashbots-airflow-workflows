@@ -18,13 +18,12 @@ with DAG(
     SqlToSlackOperator(
         task_id="daily_builders_stats_to_slack",
         sql_conn_id=POSTGRES_CONN_ID,
-        sql=f"""
-SELECT a.builder_pubkey, a.blocks, b.description FROM (
-    SELECT builder_pubkey, count(builder_pubkey) as blocks FROM mainnet_payload_delivered
-        WHERE inserted_at BETWEEN NOW() - INTERVAL '1 DAYS' AND NOW()
-        GROUP BY builder_pubkey) a
-    LEFT JOIN  mainnet_blockbuilder b ON a.builder_pubkey = b.builder_pubkey
-ORDER BY blocks DESC LIMIT 10""",
+        sql=f"""with past_24h_submissions as (SELECT builder_pubkey, count(builder_pubkey) as blocks FROM mainnet_payload_delivered WHERE inserted_at BETWEEN NOW() - INTERVAL '1 DAYS' AND NOW() GROUP BY builder_pubkey),
+past_24h_top_pubkeys as (select a.builder_pubkey, a.blocks, b.description FROM past_24h_submissions a LEFT JOIN mainnet_blockbuilder b ON a.builder_pubkey = b.builder_pubkey where a.blocks > 10 ORDER BY blocks DESC LIMIT 20),
+total_blocks as (select count(*) as cnt from mainnet_payload_delivered WHERE inserted_at BETWEEN NOW() - INTERVAL '1 DAYS' AND NOW())
+SELECT builder_pubkey, blocks, description FROM past_24h_top_pubkeys
+union all
+select 'others' as builder_pubkey, (select cnt from total_blocks) - (select sum(blocks) from past_24h_top_pubkeys) as blocks, 'others' as description""",
         slack_conn_id=SLACK_CONN_ID,
         slack_message="Builders submitting to the relay, past 24 hours\n```{{ results_df | tabulate(tablefmt='pretty', headers='keys')}}```",
     )
